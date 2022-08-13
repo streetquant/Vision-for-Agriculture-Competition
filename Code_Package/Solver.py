@@ -67,15 +67,17 @@ class Solver(object):
         self.weight = torch.tensor([1e-3, 1, 1, 1, 1, 1, 1], device=device)
 
     def _save(self, save_path):
-        package = {}
-        package['model'] = self.model
-        package['optimizer'] = self.optimizer
-        package['loss_history'] = self.loss_history
-        package['val_acc'] = self.val_acc
-        package['best_parameters'] = self.best_parameters
-        package['best_acc'] = self.best_acc
-        package['postive_weight'] = self.postive_weight
-        package['weight'] = self.weight
+        package = {
+            'model': self.model,
+            'optimizer': self.optimizer,
+            'loss_history': self.loss_history,
+            'val_acc': self.val_acc,
+            'best_parameters': self.best_parameters,
+            'best_acc': self.best_acc,
+            'postive_weight': self.postive_weight,
+            'weight': self.weight,
+        }
+
         torch.save(package, save_path)
         print('Sucessfully Save')
 
@@ -138,9 +140,10 @@ class Solver(object):
     def check_accuracy(self, loader=None, plot_every=None):
         if loader is None: loader = self.val_loader
         correct_labels, denominator, label_all, pixels = 0, 0, 0, 0
-        iteration_all = len(loader)
         picture_number = len(loader.sampler)
-        if plot_every is None: plot_every = iteration_all
+        if plot_every is None:
+            iteration_all = len(loader)
+            plot_every = iteration_all
         with torch.no_grad():
             for t, all_data in enumerate(loader):
                 self.model.eval()
@@ -155,7 +158,7 @@ class Solver(object):
                 correct_labels += torch.sum(preds * labels, dim=(0, 1, 2))
                 denominator += torch.sum((preds + labels)>0, dim=(0, 1, 2))
                 label_all += torch.sum(labels, dim=(0, 1, 2))
-                pixels += np.prod(labels.shape[0:3])
+                pixels += np.prod(labels.shape[:3])
                 if (t+1) % plot_every == 0:
                     plot_picture_contour(plot_val_data, masks, preds, labels)
 
@@ -163,11 +166,11 @@ class Solver(object):
             each_label_percentage = (label_all / pixels * 100).cpu().numpy()
             print('MIOU for each:', end=' ')
             for i in range(len(mIOU)):
-                print(self.classes[i]+':'+str(mIOU[i])+'%', end=' ')
+                print(f'{self.classes[i]}:{str(mIOU[i])}%', end=' ')
             print()
             print('Labl for each:', end=' ')
             for i in range(len(mIOU)):
-                print(self.classes[i]+':'+str(each_label_percentage[i])+'%', end=' ')
+                print(f'{self.classes[i]}:{str(each_label_percentage[i])}%', end=' ')
             print()
             label_than_0 = np.sum(label_all.cpu().numpy() > 0)
             mean_mIOU = np.sum(mIOU) / label_than_0
@@ -176,14 +179,13 @@ class Solver(object):
             return mIOU, mean_mIOU
 
     def prediction(self, pic_data, masks):
-      with torch.no_grad():
-        self.model.eval()
-        test_data, masks = concencate_data(pic_data, means, stds, preprocess=True, test=True)
-        
-        real_test = (test_data * masks).transpose(1, 3)
-        out = self.model(real_test)
-        preds = torch.argmax(out, dim=-1)
-        return preds # 512 * 512 * 1
+        with torch.no_grad():
+            self.model.eval()
+            test_data, masks = concencate_data(pic_data, means, stds, preprocess=True, test=True)
+
+            real_test = (test_data * masks).transpose(1, 3)
+            out = self.model(real_test)
+            return torch.argmax(out, dim=-1)
 
     def save_best(self):
         for k, v in self.model.state_dict().items():
